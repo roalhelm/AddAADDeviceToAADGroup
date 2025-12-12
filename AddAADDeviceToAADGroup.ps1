@@ -5,6 +5,12 @@
     GitHub Repository: https://github.com/roalhelm/
 
 .CHANGES
+    Version 1.6 (2025-12-11):
+    - BREAKING: Removed AzureAD module support (Azure AD Graph API has been deprecated by Microsoft)
+    - Now uses Microsoft.Graph SDK exclusively for all PowerShell versions
+    - Requires PowerShell 5.1 or higher (Windows PowerShell 5.1 or PowerShell Core 7+)
+    - Microsoft.Graph module is now compatible with all supported PowerShell versions
+
     Version 1.5 (2025-11-24):
     - Added cross-platform support (macOS, Linux, Windows)
     - Automatic detection of PowerShell version (Core 7+ vs Windows PowerShell 5.1)
@@ -41,23 +47,23 @@
     It verifies if each device is already a member of the specified Azure AD group before adding it.
     A log file is created to track successes, failures, and already existing devices.
     
-    The script automatically detects the PowerShell version:
-    - PowerShell Core 7+ (macOS, Linux, Windows): Uses Microsoft.Graph SDK
-    - Windows PowerShell 5.1: Uses AzureAD module
+    The script uses Microsoft.Graph SDK exclusively for all PowerShell versions.
+    Supports PowerShell 5.1+ on Windows and PowerShell Core 7+ on macOS/Linux.
 
 .NOTES
-    - For PowerShell Core 7+: Requires Microsoft.Graph module (cross-platform)
-    - For Windows PowerShell 5.1: Requires AzureAD module (Windows only)
-    - The script will automatically install the required module if not present
-    - Appropriate Azure AD permissions are required
+    - Requires Microsoft.Graph module (works on all platforms)
+    - Compatible with PowerShell 5.1+ (Windows) and PowerShell Core 7+ (macOS, Linux, Windows)
+    - The script will automatically install Microsoft.Graph module if not present
+    - Appropriate Azure AD permissions are required (Group.ReadWrite.All, Directory.Read.All, Device.Read.All)
     - The CSV file must be placed in the same directory as this script.
+    - Note: AzureAD module is no longer supported due to Azure AD Graph API deprecation
 
 .AUTHOR
 
     Original script by Ronny Alhelm
-    Version        : 1.5
+    Version        : 1.6
     Creation Date  : 2025-03-10
-    Last Modified  : 2025-11-24
+    Last Modified  : 2025-12-11
 
 .EXAMPLE
     PS C:\> .\AddAADDeviceToAADGroup.ps1
@@ -67,65 +73,43 @@
     Works on Windows (PowerShell 5.1 or 7+), macOS (PowerShell 7+), and Linux (PowerShell 7+).
 #>
 
-# Detect PowerShell version and set module preference
-$isPwsh7 = $PSVersionTable.PSEdition -eq 'Core'
-$useGraph = $false
+# Check PowerShell version
+$psVersion = $PSVersionTable.PSVersion
+Write-Host "PowerShell Version: $psVersion" -ForegroundColor Cyan
 
-if ($isPwsh7) {
-    $useGraph = $true
-    Write-Host "PowerShell Core detected. Will use Microsoft Graph PowerShell SDK." -ForegroundColor Cyan
-    
-    # Check and install Microsoft.Graph module
-    if (-not (Get-Module -ListAvailable -Name Microsoft.Graph)) {
-        try {
-            Write-Host "Microsoft.Graph module not found. Installing..." -ForegroundColor Yellow
-            Install-Module Microsoft.Graph -Scope CurrentUser -Force -ErrorAction Stop
-            Write-Host "Microsoft.Graph module has been installed successfully." -ForegroundColor Green
-        } catch {
-            Write-Host "FATAL ERROR: Could not install Microsoft.Graph module. Please install manually." -ForegroundColor Red
-            Write-Host "Error: $_" -ForegroundColor Red
-            exit 1
-        }
-    } else {
-        Write-Host "Microsoft.Graph module is already installed." -ForegroundColor Green
-    }
-    
-    # Import Microsoft.Graph module
+if ($psVersion.Major -lt 5 -or ($psVersion.Major -eq 5 -and $psVersion.Minor -lt 1)) {
+    Write-Host "FATAL ERROR: This script requires PowerShell 5.1 or higher." -ForegroundColor Red
+    Write-Host "Please upgrade your PowerShell version." -ForegroundColor Red
+    exit 1
+}
+
+Write-Host "Using Microsoft Graph PowerShell SDK (AzureAD module is deprecated)." -ForegroundColor Cyan
+
+# Check and install Microsoft.Graph module
+if (-not (Get-Module -ListAvailable -Name Microsoft.Graph)) {
     try {
-        Import-Module Microsoft.Graph -ErrorAction Stop
-        Write-Host "Microsoft.Graph module imported successfully." -ForegroundColor Green
+        Write-Host "Microsoft.Graph module not found. Installing..." -ForegroundColor Yellow
+        Install-Module Microsoft.Graph -Scope CurrentUser -Force -ErrorAction Stop
+        Write-Host "Microsoft.Graph module has been installed successfully." -ForegroundColor Green
     } catch {
-        Write-Host "FATAL ERROR: Could not import Microsoft.Graph module." -ForegroundColor Red
+        Write-Host "FATAL ERROR: Could not install Microsoft.Graph module. Please install manually." -ForegroundColor Red
         Write-Host "Error: $_" -ForegroundColor Red
         exit 1
     }
 } else {
-    Write-Host "Windows PowerShell detected. Will use AzureAD module." -ForegroundColor Cyan
-    
-    # Check and install AzureAD module
-    if (-not (Get-Module -ListAvailable -Name AzureAD)) {
-        try {
-            Write-Host "AzureAD module not found. Installing..." -ForegroundColor Yellow
-            Install-Module AzureAD -Scope CurrentUser -Force -ErrorAction Stop
-            Write-Host "AzureAD module has been installed successfully." -ForegroundColor Green
-        } catch {
-            Write-Host "FATAL ERROR: Could not install AzureAD module. Please install manually." -ForegroundColor Red
-            Write-Host "Error: $_" -ForegroundColor Red
-            exit 1
-        }
-    } else {
-        Write-Host "AzureAD module is already installed." -ForegroundColor Green
-    }
-    
-    # Import AzureAD module
-    try {
-        Import-Module AzureAD -ErrorAction Stop
-        Write-Host "AzureAD module imported successfully." -ForegroundColor Green
-    } catch {
-        Write-Host "FATAL ERROR: Could not import AzureAD module." -ForegroundColor Red
-        Write-Host "Error: $_" -ForegroundColor Red
-        exit 1
-    }
+    Write-Host "Microsoft.Graph module is already installed." -ForegroundColor Green
+}
+
+# Import required Microsoft.Graph modules
+try {
+    Import-Module Microsoft.Graph.Authentication -ErrorAction Stop
+    Import-Module Microsoft.Graph.Groups -ErrorAction Stop
+    Import-Module Microsoft.Graph.Identity.DirectoryManagement -ErrorAction Stop
+    Write-Host "Microsoft.Graph modules imported successfully." -ForegroundColor Green
+} catch {
+    Write-Host "FATAL ERROR: Could not import Microsoft.Graph modules." -ForegroundColor Red
+    Write-Host "Error: $_" -ForegroundColor Red
+    exit 1
 }
 
 # Prompt the user for the group name
@@ -198,10 +182,9 @@ Write-Host ""
 try {
     $deviceList = Import-Csv -Path $csvPath
     
-    if ($useGraph) {
-        # Microsoft Graph logic (PowerShell Core 7+)
-        Write-Host "`nConnecting to Microsoft Graph..." -ForegroundColor Cyan
-        Connect-MgGraph -Scopes "Group.ReadWrite.All", "Directory.Read.All", "Device.Read.All"
+    # Microsoft Graph logic
+    Write-Host "`nConnecting to Microsoft Graph..." -ForegroundColor Cyan
+    Connect-MgGraph -Scopes "Group.ReadWrite.All", "Directory.Read.All", "Device.Read.All"
         
         # Get the Azure AD group object and test if it exists
         $groupObj = Get-MgGroup -Filter "displayName eq '$groupName'"
@@ -309,117 +292,6 @@ try {
         }
         
         Disconnect-MgGraph
-        
-    } else {
-        # AzureAD logic (Windows PowerShell 5.1)
-        Write-Host "`nConnecting to Azure AD..." -ForegroundColor Cyan
-        Connect-AzureAD
-        
-        # AzureAD logic (Windows PowerShell 5.1)
-        Write-Host "`nConnecting to Azure AD..." -ForegroundColor Cyan
-        Connect-AzureAD
-    
-        # Get the Azure AD group object and test if it exists
-        $groupObj = Get-AzureADGroup -SearchString $groupName
-        
-        if ($null -eq $groupObj) {
-            Write-Host "Error: The specified Azure AD group '$groupName' does not exist." -ForegroundColor Red
-            exit 1
-        }
-        
-        if ($groupObj.Count -gt 1) {
-            Write-Host "Warning: Multiple groups found with the name '$groupName'. Please specify a more precise group name." -ForegroundColor Yellow
-            Write-Host "Found groups:"
-            $groupObj | Format-Table DisplayName, ObjectId
-            exit 1
-        }
-        
-        # Get the current members of the group
-        $groupMembers = Get-AzureADGroupMember -ObjectId $groupObj.ObjectId | Select-Object -ExpandProperty ObjectId
-        
-        # Define log files with timestamps
-        $timestamp = Get-Date -Format "yyyy-MM-dd_HH-mm-ss"
-        $logFile = "./Device_Addition_Log_$timestamp.txt"
-        $errorLogFile = "./Device_Addition_ErrorLog_$timestamp.txt"
-        
-        # Create header for log files
-        $logHeader = "=== Device Addition Log - Started at $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') ==="
-        Add-Content -Path $logFile -Value $logHeader
-        Add-Content -Path $errorLogFile -Value $logHeader
-        
-        foreach ($device in $deviceList) {
-            $currentTime = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-            
-            # Get device based on input type (DeviceName or DeviceId)
-            if ($useDeviceId) {
-                # Using Azure AD Device ID directly
-                $deviceId = $device.AzureADDeviceId
-                if ([string]::IsNullOrWhiteSpace($deviceId)) {
-                    $deviceId = $device.DeviceId
-                }
-                
-                if ([string]::IsNullOrWhiteSpace($deviceId)) {
-                    $notFoundMessage = "[$currentTime] WARNING: Empty Device ID in CSV row."
-                    Write-Host $notFoundMessage -ForegroundColor Yellow
-                    Add-Content -Path $logFile -Value $notFoundMessage
-                    Add-Content -Path $errorLogFile -Value $notFoundMessage
-                    continue
-                }
-                
-                try {
-                    $deviceObj = Get-AzureADDevice -ObjectId $deviceId -ErrorAction Stop
-                } catch {
-                    $notFoundMessage = "[$currentTime] WARNING: No device found in AAD with ID: $deviceId"
-                    Write-Host $notFoundMessage -ForegroundColor Yellow
-                    Add-Content -Path $logFile -Value $notFoundMessage
-                    Add-Content -Path $errorLogFile -Value $notFoundMessage
-                    continue
-                }
-            } else {
-                # Using Device Name (original logic)
-                $deviceObj = Get-AzureADDevice -SearchString $device.DeviceName
-            }
-            
-            if ($deviceObj -ne $null) {
-                foreach ($dev in $deviceObj) {
-                    $deviceIdentifier = if ($useDeviceId) { $deviceId } else { $device.DeviceName }
-                    
-                    if ($groupMembers -contains $dev.ObjectId) {
-                        $alreadyInGroupMessage = "[$currentTime] INFO: Device $deviceIdentifier is already a member of group $groupName."
-                        Write-Host $alreadyInGroupMessage
-                        Add-Content -Path $logFile -Value $alreadyInGroupMessage
-                    } else {
-                        try {
-                            Add-AzureADGroupMember -ObjectId $groupObj.ObjectId -RefObjectId $dev.ObjectId       
-                            $successMessage = "[$currentTime] SUCCESS: Device $deviceIdentifier added to group $groupName."
-                            Write-Host $successMessage -ForegroundColor Green
-                            Add-Content -Path $logFile -Value $successMessage
-                        }
-                        catch {
-                            $errMsg = $_.Exception.Message
-                            if ($errMsg -like '*One or more added object references already exist for the following modified properties*') {
-                                $alreadyMsg = "[$currentTime] WARNING: Device $deviceIdentifier is already a member of group $groupName (detected by error)."
-                                Write-Host "Device $deviceIdentifier is already in the group $groupName (detected by error)." -ForegroundColor Yellow
-                                Add-Content -Path $logFile -Value $alreadyMsg
-                                Add-Content -Path $errorLogFile -Value $alreadyMsg
-                            } else {
-                                $errorMessage = "[$currentTime] ERROR: Device $deviceIdentifier could not be added to the group. Error: $errMsg"
-                                Write-Host $errorMessage -ForegroundColor Red
-                                Add-Content -Path $logFile -Value $errorMessage
-                                Add-Content -Path $errorLogFile -Value $errorMessage
-                            }
-                        }
-                    }
-                }
-            } else {
-                $deviceIdentifier = if ($useDeviceId) { $deviceId } else { $device.DeviceName }
-                $notFoundMessage = "[$currentTime] WARNING: No device found in AAD for $deviceIdentifier."
-                Write-Host $notFoundMessage -ForegroundColor Yellow
-                Add-Content -Path $logFile -Value $notFoundMessage
-                Add-Content -Path $errorLogFile -Value $notFoundMessage
-            }
-        }
-    }
 }
 catch {
     $currentTime = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
