@@ -51,7 +51,7 @@ Das Skript fragt nach:
 
 ## 📋 CSV-Datei Format
 
-Die CSV-Datei muss so aufgebaut sein:
+Die CSV-Datei kann einen der folgenden Header verwenden:
 
 ```csv
 DeviceName
@@ -60,7 +60,15 @@ LAPTOP-XYZ456
 WORKSTATION-789
 ```
 
-**Wichtig**: Erste Zeile muss exakt `DeviceName` sein.
+Oder alternativ per Azure AD Device ID:
+
+```csv
+AzureADDeviceId
+12345678-1234-1234-1234-123456789abc
+87654321-4321-4321-4321-cba987654321
+```
+
+**Wichtig**: Erste Zeile muss exakt `DeviceName`, `AzureADDeviceId` oder `DeviceId` sein.
 
 ## 📖 Verwendung
 
@@ -221,9 +229,9 @@ Install-Module Microsoft.Graph -Scope CurrentUser -Force
 ```
 
 ### CSV-Format-Fehler
-**Problem**: `Error: The CSV file must have 'DeviceName' as the header`
+**Problem**: `Error: The CSV file must have one of the following headers: DeviceName, AzureADDeviceId, DeviceId`
 
-**Lösung**: Erste Zeile muss exakt `DeviceName` sein
+**Lösung**: Erste Zeile muss exakt `DeviceName`, `AzureADDeviceId` oder `DeviceId` sein
 ```powershell
 Get-Content Devices.csv -TotalCount 1  # Prüfen
 ```

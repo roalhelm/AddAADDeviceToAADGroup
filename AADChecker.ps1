@@ -40,10 +40,21 @@
     Works on Windows (PowerShell 5.1 or 7+), macOS (PowerShell 7+), and Linux (PowerShell 7+).
 #>
 
+function Escape-ODataStringLiteral {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Value
+    )
+
+    return $Value.Replace("'", "''")
+}
+
+$scriptDirectory = if ($PSScriptRoot) { $PSScriptRoot } else { (Get-Location).Path }
+
 # Define the CSV file path
-$CsvFilePath = ".\Devices.csv"
-$InAADFile = ".\Devices_In_AAD.csv"
-$NotInAADFile = ".\Devices_Not_In_AAD.csv"
+$CsvFilePath = Join-Path -Path $scriptDirectory -ChildPath "Devices.csv"
+$InAADFile = Join-Path -Path $scriptDirectory -ChildPath "Devices_In_AAD.csv"
+$NotInAADFile = Join-Path -Path $scriptDirectory -ChildPath "Devices_Not_In_AAD.csv"
 
 # Check PowerShell version
 $psVersion = $PSVersionTable.PSVersion
@@ -116,7 +127,8 @@ foreach ($device in $devices) {
     
     # Use Microsoft Graph
     try {
-        $aadDevice = Get-MgDevice -Filter "displayName eq '$clientName'" -ErrorAction SilentlyContinue
+        $escapedClientName = Escape-ODataStringLiteral -Value $clientName
+        $aadDevice = Get-MgDevice -Filter "displayName eq '$escapedClientName'" -ErrorAction SilentlyContinue
     } catch {
         Write-Host "Error querying device: $_" -ForegroundColor Yellow
         $aadDevice = $null
@@ -145,3 +157,7 @@ Write-Host "Total devices checked: $totalDevices" -ForegroundColor White
 Write-Host "Devices found in AAD: $inAADCount" -ForegroundColor Green
 Write-Host "Devices NOT found in AAD: $notInAADCount" -ForegroundColor Red
 Write-Host "`nScript execution completed. Results saved to $InAADFile and $NotInAADFile."
+
+if (Get-MgContext) {
+    Disconnect-MgGraph | Out-Null
+}

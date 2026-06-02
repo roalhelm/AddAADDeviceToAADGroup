@@ -85,6 +85,17 @@ if ($psVersion.Major -lt 5 -or ($psVersion.Major -eq 5 -and $psVersion.Minor -lt
 
 Write-Host "Using Microsoft Graph PowerShell SDK (AzureAD module is deprecated)." -ForegroundColor Cyan
 
+function Escape-ODataStringLiteral {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Value
+    )
+
+    return $Value.Replace("'", "''")
+}
+
+$scriptDirectory = if ($PSScriptRoot) { $PSScriptRoot } else { (Get-Location).Path }
+
 # Check and install Microsoft.Graph module
 if (-not (Get-Module -ListAvailable -Name Microsoft.Graph)) {
     try {
@@ -120,11 +131,11 @@ $csvChoice = Read-Host "Which CSV file do you want to use? Enter 1 for Devices.c
 
 # Set the CSV file path based on user choice
 $csvPath = switch ($csvChoice) {
-    "1" { ".\Devices.csv" }
-    "2" { ".\Devices_In_AAD.csv" }
+    "1" { Join-Path -Path $scriptDirectory -ChildPath "Devices.csv" }
+    "2" { Join-Path -Path $scriptDirectory -ChildPath "Devices_In_AAD.csv" }
     default {
         Write-Host "Invalid choice. Defaulting to Devices.csv" -ForegroundColor Yellow
-        ".\Devices.csv"
+        Join-Path -Path $scriptDirectory -ChildPath "Devices.csv"
     }
 }
 
@@ -180,6 +191,8 @@ if ($useDeviceId) {
 Write-Host ""
 
 try {
+    $logFile = $null
+    $errorLogFile = $null
     $deviceList = Import-Csv -Path $csvPath
     
     # Microsoft Graph logic
@@ -187,7 +200,8 @@ try {
     Connect-MgGraph -Scopes "Group.ReadWrite.All", "Directory.Read.All", "Device.Read.All"
         
         # Get the Azure AD group object and test if it exists
-        $groupObj = Get-MgGroup -Filter "displayName eq '$groupName'"
+        $escapedGroupName = Escape-ODataStringLiteral -Value $groupName
+        $groupObj = Get-MgGroup -Filter "displayName eq '$escapedGroupName'"
         
         if ($null -eq $groupObj) {
             Write-Host "Error: The specified Azure AD group '$groupName' does not exist." -ForegroundColor Red
@@ -206,12 +220,12 @@ try {
         $groupId = $groupObj.Id
         
         # Get the current members of the group
-        $groupMembers = Get-MgGroupMember -GroupId $groupId | Select-Object -ExpandProperty Id
+        $groupMembers = Get-MgGroupMember -GroupId $groupId -All | Select-Object -ExpandProperty Id
         
         # Define log files with timestamps
         $timestamp = Get-Date -Format "yyyy-MM-dd_HH-mm-ss"
-        $logFile = "./Device_Addition_Log_$timestamp.txt"
-        $errorLogFile = "./Device_Addition_ErrorLog_$timestamp.txt"
+        $logFile = Join-Path -Path $scriptDirectory -ChildPath "Device_Addition_Log_$timestamp.txt"
+        $errorLogFile = Join-Path -Path $scriptDirectory -ChildPath "Device_Addition_ErrorLog_$timestamp.txt"
         
         # Create header for log files
         $logHeader = "=== Device Addition Log - Started at $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') ==="
@@ -248,7 +262,8 @@ try {
                 }
             } else {
                 # Using Device Name (original logic)
-                $deviceObj = Get-MgDevice -Filter "displayName eq '$($device.DeviceName)'"
+                $escapedDeviceName = Escape-ODataStringLiteral -Value $device.DeviceName
+                $deviceObj = Get-MgDevice -Filter "displayName eq '$escapedDeviceName'"
             }
             
             if ($null -ne $deviceObj) {
@@ -291,20 +306,32 @@ try {
             }
         }
         
-        Disconnect-MgGraph
 }
 catch {
     $currentTime = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     $exceptionMessage = "[$currentTime] FATAL ERROR: $($_.Exception.Message)"
     Write-Host $exceptionMessage -ForegroundColor Red
-    Add-Content -Path $logFile -Value $exceptionMessage
-    Add-Content -Path $errorLogFile -Value $exceptionMessage
+    if ($logFile) {
+        Add-Content -Path $logFile -Value $exceptionMessage
+    }
+    if ($errorLogFile) {
+        Add-Content -Path $errorLogFile -Value $exceptionMessage
+    }
+}
+finally {
+    if (Get-MgContext) {
+        Disconnect-MgGraph | Out-Null
+    }
 }
 
 # Add footer to log files
 $logFooter = "`n=== Script completed at $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') ==="
-Add-Content -Path $logFile -Value $logFooter
-Add-Content -Path $errorLogFile -Value $logFooter
+if ($logFile) {
+    Add-Content -Path $logFile -Value $logFooter
+}
+if ($errorLogFile) {
+    Add-Content -Path $errorLogFile -Value $logFooter
+}
 
 Write-Host "`nScript completed. Check the following files for details:"
 Write-Host "Main Log: $logFile"
