@@ -1,0 +1,17 @@
+# Logs and results
+logs/
+*.log
+
+
+# Powershell temp files
+*.tmp
+
+# OS files
+.DS_Store
+thumbs.db
+
+# Devices
+Devices.csv
+Device_Addition_ErrorLog_2026-07-01_10-27-16.txt
+Device_Addition_Log_2026-07-01_10-27-16.txt
+Devices.csv
