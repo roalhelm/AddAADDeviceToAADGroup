@@ -123,19 +123,41 @@ try {
     exit 1
 }
 
+# Prompt the user for target type
+$targetTypeChoice = Read-Host "Welche Objekte möchten Sie einer AAD-Gruppe hinzufügen? Enter 1 for Clients/Devices or 2 for Users"
+
+$targetType = switch ($targetTypeChoice) {
+    "1" { "Device" }
+    "2" { "User" }
+    default {
+        Write-Host "Invalid choice. Defaulting to Devices/Clients." -ForegroundColor Yellow
+        "Device"
+    }
+}
+
 # Prompt the user for the group name
 $groupName = Read-Host "Enter the Azure AD group name"
 
 # Prompt the user for CSV file choice
-$csvChoice = Read-Host "Which CSV file do you want to use? Enter 1 for Devices.csv or 2 for Devices_In_AAD.csv"
+if ($targetType -eq "Device") {
+    $defaultCsvName = "Devices.csv"
+    $secondaryCsvName = "Devices_In_AAD.csv"
+    $validHeaders = @("DeviceName", "AzureADDeviceId", "DeviceId")
+} else {
+    $defaultCsvName = "Users.csv"
+    $secondaryCsvName = "Users_In_AAD.csv"
+    $validHeaders = @("UserPrincipalName", "UPN", "Mail", "Email", "DisplayName", "UserName", "ObjectId", "Id")
+}
+
+$csvChoice = Read-Host "Which CSV file do you want to use? Enter 1 for $defaultCsvName or 2 for $secondaryCsvName"
 
 # Set the CSV file path based on user choice
 $csvPath = switch ($csvChoice) {
-    "1" { Join-Path -Path $scriptDirectory -ChildPath "Devices.csv" }
-    "2" { Join-Path -Path $scriptDirectory -ChildPath "Devices_In_AAD.csv" }
+    "1" { Join-Path -Path $scriptDirectory -ChildPath $defaultCsvName }
+    "2" { Join-Path -Path $scriptDirectory -ChildPath $secondaryCsvName }
     default {
-        Write-Host "Invalid choice. Defaulting to Devices.csv" -ForegroundColor Yellow
-        Join-Path -Path $scriptDirectory -ChildPath "Devices.csv"
+        Write-Host "Invalid choice. Defaulting to $defaultCsvName" -ForegroundColor Yellow
+        Join-Path -Path $scriptDirectory -ChildPath $defaultCsvName
     }
 }
 
@@ -147,15 +169,14 @@ if (-not (Test-Path $csvPath)) {
 
 # Validate CSV header
 $csvHeader = Get-Content -Path $csvPath -TotalCount 1
-$validHeaders = @("DeviceName", "AzureADDeviceId", "DeviceId")
 $headerValid = $false
-$useDeviceId = $false
+$useObjectId = $false
 
 foreach ($header in $validHeaders) {
     if ($csvHeader -eq $header) {
         $headerValid = $true
-        if ($header -in @("AzureADDeviceId", "DeviceId")) {
-            $useDeviceId = $true
+        if ($targetType -eq "Device" -and $header -in @("AzureADDeviceId", "DeviceId")) {
+            $useObjectId = $true
         }
         break
     }
@@ -170,34 +191,44 @@ if (-not $headerValid) {
 # Inform the user about the required CSV format
 Write-Host "The CSV file should have one of the following formats:" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "Option 1 (Device Name):"
-Write-Host "DeviceName"
-Write-Host "Device1"
-Write-Host "Device2"
-Write-Host ""
-Write-Host "Option 2 (Azure AD Device ID):"
-Write-Host "AzureADDeviceId"
-Write-Host "12345678-1234-1234-1234-123456789abc"
-Write-Host "87654321-4321-4321-4321-cba987654321"
-Write-Host ""
-Write-Host "Ensure the file is placed in the same directory as this script."
-Write-Host ""
 
-if ($useDeviceId) {
-    Write-Host "Detected: CSV contains Azure AD Device IDs" -ForegroundColor Green
+if ($targetType -eq "Device") {
+    Write-Host "Option 1 (Device Name):"
+    Write-Host "DeviceName"
+    Write-Host "Laptop-01"
+    Write-Host "Laptop-02"
+    Write-Host ""
+    Write-Host "Option 2 (Azure AD Device ID):"
+    Write-Host "AzureADDeviceId"
+    Write-Host "12345678-1234-1234-1234-123456789abc"
+    Write-Host "87654321-4321-4321-4321-cba987654321"
+    Write-Host ""
+    Write-Host "Detected: CSV contains Device Names or Azure AD Device IDs" -ForegroundColor Green
 } else {
-    Write-Host "Detected: CSV contains Device Names" -ForegroundColor Green
+    Write-Host "Option 1 (User Principal Name):"
+    Write-Host "UserPrincipalName"
+    Write-Host "user1@contoso.com"
+    Write-Host "user2@contoso.com"
+    Write-Host ""
+    Write-Host "Option 2 (Mail / Email):"
+    Write-Host "Mail"
+    Write-Host "user1@contoso.com"
+    Write-Host "user2@contoso.com"
+    Write-Host ""
+    Write-Host "Detected: CSV contains user identifiers" -ForegroundColor Green
 }
+
+Write-Host "Ensure the file is placed in the same directory as this script."
 Write-Host ""
 
 try {
     $logFile = $null
     $errorLogFile = $null
-    $deviceList = Import-Csv -Path $csvPath
+    $objectList = Import-Csv -Path $csvPath
     
     # Microsoft Graph logic
     Write-Host "`nConnecting to Microsoft Graph..." -ForegroundColor Cyan
-    Connect-MgGraph -Scopes "Group.ReadWrite.All", "Directory.Read.All", "Device.Read.All"
+    Connect-MgGraph -Scopes "Group.ReadWrite.All", "Directory.Read.All", "Device.Read.All", "User.Read.All"
         
         # Get the Azure AD group object and test if it exists
         $escapedGroupName = Escape-ODataStringLiteral -Value $groupName
@@ -224,51 +255,126 @@ try {
         
         # Define log files with timestamps
         $timestamp = Get-Date -Format "yyyy-MM-dd_HH-mm-ss"
-        $logFile = Join-Path -Path $scriptDirectory -ChildPath "Device_Addition_Log_$timestamp.txt"
-        $errorLogFile = Join-Path -Path $scriptDirectory -ChildPath "Device_Addition_ErrorLog_$timestamp.txt"
+        $objectTypeLabel = if ($targetType -eq "User") { "User" } else { "Device" }
+        $logFile = Join-Path -Path $scriptDirectory -ChildPath "${objectTypeLabel}_Addition_Log_$timestamp.txt"
+        $errorLogFile = Join-Path -Path $scriptDirectory -ChildPath "${objectTypeLabel}_Addition_ErrorLog_$timestamp.txt"
         
         # Create header for log files
-        $logHeader = "=== Device Addition Log - Started at $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') ==="
+        $logHeader = "=== ${objectTypeLabel} Addition Log - Started at $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') ==="
         Add-Content -Path $logFile -Value $logHeader
         Add-Content -Path $errorLogFile -Value $logHeader
         
-        foreach ($device in $deviceList) {
+        foreach ($row in $objectList) {
             $currentTime = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-            
-            # Get device based on input type (DeviceName or DeviceId)
-            if ($useDeviceId) {
-                # Using Azure AD Device ID directly
-                $deviceId = $device.AzureADDeviceId
-                if ([string]::IsNullOrWhiteSpace($deviceId)) {
-                    $deviceId = $device.DeviceId
+
+            if ($targetType -eq "User") {
+                $userValue = $null
+                foreach ($identifierKey in @("UserPrincipalName", "UPN", "Mail", "Email", "DisplayName", "UserName", "ObjectId", "Id")) {
+                    if ($row.PSObject.Properties.Name -contains $identifierKey) {
+                        $candidateValue = $row.$identifierKey
+                        if (-not [string]::IsNullOrWhiteSpace($candidateValue)) {
+                            $userValue = $candidateValue
+                            break
+                        }
+                    }
                 }
-                
-                if ([string]::IsNullOrWhiteSpace($deviceId)) {
+
+                if ([string]::IsNullOrWhiteSpace($userValue)) {
+                    $notFoundMessage = "[$currentTime] WARNING: Empty user identifier in CSV row."
+                    Write-Host $notFoundMessage -ForegroundColor Yellow
+                    Add-Content -Path $logFile -Value $notFoundMessage
+                    Add-Content -Path $errorLogFile -Value $notFoundMessage
+                    continue
+                }
+
+                try {
+                    $userObj = $null
+                    if ($row.PSObject.Properties.Name -contains "UserPrincipalName" -or $row.PSObject.Properties.Name -contains "UPN") {
+                        $escapedUserValue = Escape-ODataStringLiteral -Value $userValue
+                        $userObj = @(Get-MgUser -Filter "userPrincipalName eq '$escapedUserValue'" -ErrorAction Stop)
+                    } elseif ($row.PSObject.Properties.Name -contains "Mail" -or $row.PSObject.Properties.Name -contains "Email") {
+                        $escapedUserValue = Escape-ODataStringLiteral -Value $userValue
+                        $userObj = @(Get-MgUser -Filter "mail eq '$escapedUserValue'" -ErrorAction Stop)
+                    } elseif ($row.PSObject.Properties.Name -contains "ObjectId" -or $row.PSObject.Properties.Name -contains "Id") {
+                        $userObj = @(Get-MgUser -UserId $userValue -ErrorAction Stop)
+                    } else {
+                        $escapedUserValue = Escape-ODataStringLiteral -Value $userValue
+                        $userObj = @(Get-MgUser -Filter "displayName eq '$escapedUserValue'" -ErrorAction Stop)
+                    }
+
+                    if ($null -eq $userObj -or $userObj.Count -eq 0) {
+                        throw "No user found in AAD for $userValue"
+                    }
+                } catch {
+                    $notFoundMessage = "[$currentTime] WARNING: No user found in AAD for $userValue"
+                    Write-Host $notFoundMessage -ForegroundColor Yellow
+                    Add-Content -Path $logFile -Value $notFoundMessage
+                    Add-Content -Path $errorLogFile -Value $notFoundMessage
+                    continue
+                }
+
+                foreach ($user in $userObj) {
+                    if ($groupMembers -contains $user.Id) {
+                        $alreadyInGroupMessage = "[$currentTime] INFO: User $($user.UserPrincipalName) is already a member of group $groupName."
+                        Write-Host $alreadyInGroupMessage
+                        Add-Content -Path $logFile -Value $alreadyInGroupMessage
+                    } else {
+                        try {
+                            New-MgGroupMember -GroupId $groupId -DirectoryObjectId $user.Id
+                            $successMessage = "[$currentTime] SUCCESS: User $($user.UserPrincipalName) added to group $groupName."
+                            Write-Host $successMessage -ForegroundColor Green
+                            Add-Content -Path $logFile -Value $successMessage
+                        } catch {
+                            $errMsg = $_.Exception.Message
+                            if ($errMsg -like '*already exist*' -or $errMsg -like '*already a member*') {
+                                $alreadyMsg = "[$currentTime] WARNING: User $($user.UserPrincipalName) is already a member of group $groupName (detected by error)."
+                                Write-Host "User $($user.UserPrincipalName) is already in the group $groupName (detected by error)." -ForegroundColor Yellow
+                                Add-Content -Path $logFile -Value $alreadyMsg
+                                Add-Content -Path $errorLogFile -Value $alreadyMsg
+                            } else {
+                                $errorMessage = "[$currentTime] ERROR: User $($user.UserPrincipalName) could not be added to the group. Error: $errMsg"
+                                Write-Host $errorMessage -ForegroundColor Red
+                                Add-Content -Path $logFile -Value $errorMessage
+                                Add-Content -Path $errorLogFile -Value $errorMessage
+                            }
+                        }
+                    }
+                }
+                continue
+            }
+
+            # Device logic
+            if ($useObjectId) {
+                $objectId = $row.AzureADDeviceId
+                if ([string]::IsNullOrWhiteSpace($objectId)) {
+                    $objectId = $row.DeviceId
+                }
+
+                if ([string]::IsNullOrWhiteSpace($objectId)) {
                     $notFoundMessage = "[$currentTime] WARNING: Empty Device ID in CSV row."
                     Write-Host $notFoundMessage -ForegroundColor Yellow
                     Add-Content -Path $logFile -Value $notFoundMessage
                     Add-Content -Path $errorLogFile -Value $notFoundMessage
                     continue
                 }
-                
+
                 try {
-                    $deviceObj = Get-MgDevice -DeviceId $deviceId -ErrorAction Stop
+                    $deviceObj = @(Get-MgDevice -DeviceId $objectId -ErrorAction Stop)
                 } catch {
-                    $notFoundMessage = "[$currentTime] WARNING: No device found in AAD with ID: $deviceId"
+                    $notFoundMessage = "[$currentTime] WARNING: No device found in AAD with ID: $objectId"
                     Write-Host $notFoundMessage -ForegroundColor Yellow
                     Add-Content -Path $logFile -Value $notFoundMessage
                     Add-Content -Path $errorLogFile -Value $notFoundMessage
                     continue
                 }
             } else {
-                # Using Device Name (original logic)
-                $escapedDeviceName = Escape-ODataStringLiteral -Value $device.DeviceName
-                $deviceObj = Get-MgDevice -Filter "displayName eq '$escapedDeviceName'"
+                $escapedDeviceName = Escape-ODataStringLiteral -Value $row.DeviceName
+                $deviceObj = @(Get-MgDevice -Filter "displayName eq '$escapedDeviceName'" -ErrorAction Stop)
             }
             
-            if ($null -ne $deviceObj) {
+            if ($deviceObj.Count -gt 0) {
                 foreach ($dev in $deviceObj) {
-                    $deviceIdentifier = if ($useDeviceId) { $deviceId } else { $device.DeviceName }
+                    $deviceIdentifier = if ($useObjectId) { $objectId } else { $row.DeviceName }
                     
                     if ($groupMembers -contains $dev.Id) {
                         $alreadyInGroupMessage = "[$currentTime] INFO: Device $deviceIdentifier is already a member of group $groupName."
@@ -298,7 +404,7 @@ try {
                     }
                 }
             } else {
-                $deviceIdentifier = if ($useDeviceId) { $deviceId } else { $device.DeviceName }
+                $deviceIdentifier = if ($useObjectId) { $objectId } else { $row.DeviceName }
                 $notFoundMessage = "[$currentTime] WARNING: No device found in AAD for $deviceIdentifier."
                 Write-Host $notFoundMessage -ForegroundColor Yellow
                 Add-Content -Path $logFile -Value $notFoundMessage

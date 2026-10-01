@@ -1,35 +1,37 @@
-# Azure AD Device Group Management
+# Azure AD / Entra ID Group Management
 
 [![PowerShell](https://img.shields.io/badge/PowerShell-5.1%2B%20%7C%207%2B-blue?logo=powershell)](https://github.com/PowerShell/PowerShell)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)](https://github.com/roalhelm/PowershellScripts)
-[![Version](https://img.shields.io/badge/Version-1.6-brightgreen)](https://github.com/roalhelm/PowershellScripts)
+[![Version](https://img.shields.io/badge/Version-1.7-brightgreen)](https://github.com/roalhelm/PowershellScripts)
 [![Module](https://img.shields.io/badge/Module-Microsoft.Graph-orange)](https://www.powershellgallery.com/packages/Microsoft.Graph)
 
-PowerShell-Skripte zur Verwaltung von Azure AD-Geräten und Gruppenzugehörigkeiten mit **Cross-Platform-Support** für Windows, macOS und Linux.
+PowerShell scripts for managing Azure AD / Microsoft Entra ID group memberships for both devices and users. The scripts work across Windows, macOS, and Linux.
 
-> **⚠️ Wichtiger Hinweis**: Ab Version 1.6 wird ausschließlich **Microsoft.Graph** verwendet. Das AzureAD-Modul wird nicht mehr unterstützt, da Microsoft die Azure AD Graph API deaktiviert hat.
+> **⚠️ Important note**: Starting with version 1.6, the scripts use only **Microsoft.Graph**. The AzureAD module is no longer supported because Microsoft has retired the Azure AD Graph API.
 
 ## ✨ Features
 
-- 🖥️ **Cross-Platform**: Windows, macOS, Linux (PowerShell 5.1+ oder 7+)
-- 🔄 **Modern**: Verwendet ausschließlich Microsoft.Graph SDK (Azure AD Graph API ist deprecated)
-- 📊 **Batch-Verarbeitung**: Mehrere Geräte gleichzeitig hinzufügen
-- ✅ **Duplikatsprüfung**: Überspringt bereits vorhandene Geräte
-- 📝 **Logging**: Detaillierte Log-Dateien mit Zeitstempel
-- 🔧 **Auto-Install**: Installiert Microsoft.Graph automatisch, falls nicht vorhanden
+- 🖥️ **Cross-platform**: Windows, macOS, Linux (PowerShell 5.1+ or 7+)
+- 🔄 **Modern**: Uses Microsoft.Graph SDK only
+- 📊 **Batch processing**: Add multiple devices or users at once
+- ✅ **Duplicate check**: Skips members that are already in the group
+- 🧠 **Runtime selection**: Decide at startup whether to add devices/clients or users
+- 📝 **Logging**: Detailed log files with timestamps
+- 🔧 **Auto-install**: Installs Microsoft.Graph automatically if needed
 
-## 📦 Skripte
+## 📦 Scripts
 
-| Skript | Plattform | Beschreibung |
+| Script | Platform | Description |
 |--------|-----------|--------------|
-| **AddAADDeviceToAADGroup.ps1** | 🪟🍎🐧 | Hauptskript: Geräte aus CSV zu Azure AD-Gruppe hinzufügen |
-| **AADChecker.ps1** | 🪟🍎🐧 | Prüft, welche Geräte in Azure AD existieren |
-| **Add-DevicesToAADGroupFunction.ps1** | 🪟🍎🐧 | PowerShell-Funktion für Automatisierung |
-| **AddDeviceCSV.ps1** | 🪟 | GUI-Tool zur CSV-Erstellung (nur Windows) |
+| **AddAADDeviceToAADGroup.ps1** | 🪟🍎🐧 | Main script: add devices or users from CSV to an Entra ID group |
+| **AADChecker.ps1** | 🪟🍎🐧 | Checks which devices exist in Entra ID |
+| **Add-DevicesToAADGroupFunction.ps1** | 🪟🍎🐧 | PowerShell function for automation |
+| **Users.csv** | 🪟🍎🐧 | Sample CSV for user imports |
+| **Devices.csv** | 🪟🍎🐧 | Sample CSV for device imports |
 
 🪟 Windows | 🍎 macOS | 🐧 Linux
 
-## 🚀 Schnellstart
+## 🚀 Quick start
 
 ### Windows
 ```powershell
@@ -44,15 +46,17 @@ pwsh
 ./AddAADDeviceToAADGroup.ps1
 ```
 
-Das Skript fragt nach:
-1. CSV-Datei (1 = Devices.csv, 2 = Devices_In_AAD.csv)
-2. Name der Azure AD-Gruppe
-3. Anmeldung bei Azure AD / Microsoft Graph
+When the script starts, it asks:
+1. Whether to add devices/clients or users
+2. The Entra ID group name
+3. Which CSV file to use
+4. To sign in to Microsoft Graph
 
-## 📋 CSV-Datei Format
+## 📋 CSV formats
 
-Die CSV-Datei kann einen der folgenden Header verwenden:
+### Devices / clients
 
+#### Option 1: Device name
 ```csv
 DeviceName
 DESKTOP-ABC123
@@ -60,98 +64,104 @@ LAPTOP-XYZ456
 WORKSTATION-789
 ```
 
-Oder alternativ per Azure AD Device ID:
-
+#### Option 2: Azure AD / Entra device ID
 ```csv
 AzureADDeviceId
 12345678-1234-1234-1234-123456789abc
 87654321-4321-4321-4321-cba987654321
 ```
 
-**Wichtig**: Erste Zeile muss exakt `DeviceName`, `AzureADDeviceId` oder `DeviceId` sein.
+### Users
 
-## 📖 Verwendung
-
-### 1. AddAADDeviceToAADGroup.ps1 (Hauptskript)
-
-Fügt Geräte aus CSV zu einer Azure AD-Gruppe hinzu.
-
-**Ablauf**:
-1. Prüft PowerShell-Version (mind. 5.1 erforderlich)
-2. Installiert Microsoft.Graph automatisch, falls nicht vorhanden
-3. Liest CSV-Datei
-4. Prüft jedes Gerät (Existiert? Bereits Mitglied?)
-5. Fügt neue Geräte zur Gruppe hinzu
-6. Erstellt Log-Dateien
-
-**Ausgabe**:
+#### Option 1: User Principal Name
+```csv
+UserPrincipalName
+user1@contoso.com
+user2@contoso.com
 ```
-PowerShell Version: 7.4.1
-Using Microsoft Graph PowerShell SDK (AzureAD module is deprecated).
-[2025-12-12 10:30:15] SUCCESS: Device LAPTOP-XYZ456 added to group Intune-Devices.
-[2025-12-12 10:30:17] INFO: Device DESKTOP-ABC123 is already a member.
+
+#### Option 2: Email / Mail
+```csv
+Mail
+user1@contoso.com
+user2@contoso.com
+```
+
+**Important**: The first row must match one of the valid headers exactly, such as `DeviceName`, `AzureADDeviceId`, `UserPrincipalName`, `Mail`, or `Email`.
+
+## 📖 Usage
+
+### 1. AddAADDeviceToAADGroup.ps1 (main script)
+
+Adds either devices or users from a CSV file to an Entra ID group, depending on the selection made at startup.
+
+**Flow**:
+1. Checks the PowerShell version (minimum 5.1 required)
+2. Installs Microsoft.Graph automatically if needed
+3. Prompts for the object type (`1 = Devices`, `2 = Users`)
+4. Reads the selected CSV file
+5. Checks each item (exists? already a member?)
+6. Adds new objects to the group
+7. Creates log files
+
+**Example output**:
+```
+Which objects do you want to add to an AAD group? Enter 1 for Clients/Devices or 2 for Users
+Enter the Azure AD group name: MyGroup
+[2025-12-12 10:30:15] SUCCESS: Device LAPTOP-XYZ456 added to group MyGroup.
+[2025-12-12 10:30:17] INFO: User user1@contoso.com is already a member.
 
 Script completed. Check log files for details.
 ```
 
 ### 2. AADChecker.ps1
 
-Prüft, welche Geräte aus der CSV in Azure AD existieren.
+Checks which devices from the CSV exist in Entra ID.
 
-**Verwendung**:
+**Usage**:
 ```powershell
 .\AADChecker.ps1
 ```
 
-**Erstellt**:
-- `Devices_In_AAD.csv` - Gefundene Geräte
-- `Devices_Not_In_AAD.csv` - Nicht gefundene Geräte
+**Creates**:
+- `Devices_In_AAD.csv` - devices found
+- `Devices_Not_In_AAD.csv` - devices not found
 
-**Anwendung**: Vorab-Prüfung vor dem Hinzufügen zu Gruppen
+**Use case**: Pre-check before adding members to a group
 
 ### 3. Add-DevicesToAADGroupFunction.ps1
 
-PowerShell-Funktion für Automatisierung.
+PowerShell function for automation. This function is still optimized for device workflows, but it can be extended for user scenarios as needed.
 
-**Verwendung**:
+**Usage**:
 ```powershell
-# Funktion laden
+# Load the function
 . .\Add-DevicesToAADGroupFunction.ps1
 
-# Ausführen
+# Run it
 $result = Add-DevicesToAADGroup -GroupName "Intune-Devices" -CsvPath ".\Devices.csv"
 
-# Ergebnis
-Write-Host "Erfolgreich: $($result.Success)"
-Write-Host "Bereits Mitglied: $($result.AlreadyMember)"
+# Display the result
+Write-Host "Successful: $($result.Success)"
+Write-Host "Already a member: $($result.AlreadyMember)"
 ```
-
-### 4. AddDeviceCSV.ps1 (nur Windows)
-
-GUI-Tool zur einfachen CSV-Erstellung.
-
-```powershell
-.\AddDeviceCSV.ps1
-```
-
-Gerätenamen eingeben (komma-, semikolon- oder leerzeichen-getrennt) und speichern.
 
 ## ⚙️ Installation
 
 ### Windows
 ```powershell
-# Execution Policy setzen
+# Set execution policy
 Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 
-# Microsoft.Graph Modul (wird automatisch installiert, oder manuell):
+# Microsoft.Graph module (installed automatically or manually)
 Install-Module Microsoft.Graph -Scope CurrentUser -Force
 ```
 
-**Wichtig**: Das AzureAD-Modul wird **nicht mehr unterstützt**, da Microsoft die Azure AD Graph API deaktiviert hat. Verwenden Sie ausschließlich Microsoft.Graph.
+**Important**: The AzureAD module is no longer supported because Microsoft has retired the Azure AD Graph API. Use only Microsoft.Graph.
 
 ### macOS / Linux
 ```bash
-# PowerShell 7+ installieren
+# Install PowerShell 7+
 # macOS:
 brew install --cask powershell
 
@@ -160,139 +170,142 @@ wget https://packages.microsoft.com/config/ubuntu/22.04/packages-microsoft-prod.
 sudo dpkg -i packages-microsoft-prod.deb
 sudo apt-get update && sudo apt-get install -y powershell
 
-# PowerShell starten und Modul installieren
+# Start PowerShell and install the module
 pwsh
 Install-Module Microsoft.Graph -Scope CurrentUser -Force
 ```
 
-### Azure AD Berechtigungen
+### Azure AD / Entra ID permissions
 
-Benötigt werden:
-- `Group.ReadWrite.All` - Gruppen lesen und schreiben
-- `Device.Read.All` - Geräte lesen
-- `Directory.Read.All` - Verzeichnis lesen
+The following permissions are required:
+- `Group.ReadWrite.All` - read and write group memberships
+- `Device.Read.All` - read devices
+- `User.Read.All` - read users
+- `Directory.Read.All` - read directory data
 
-*Diese werden beim ersten `Connect-MgGraph` angefordert.*
+*These are requested at the first `Connect-MgGraph` call.*
 
-## 📝 Beispiele
+## 📝 Examples
 
-### Standard-Verwendung
+### Add devices (default)
 ```powershell
 .\AddAADDeviceToAADGroup.ps1
-# CSV wählen → Gruppe eingeben → Anmelden → Fertig
+# Selection: 1 = Devices/Clients
+# Enter group name → choose CSV → sign in → done
 ```
 
-### Mit Vorab-Prüfung
+### Add users
 ```powershell
-# 1. Prüfen, welche Geräte existieren
+.\AddAADDeviceToAADGroup.ps1
+# Selection: 2 = Users
+# Enter group name → choose Users.csv → sign in → done
+```
+
+### Pre-check devices before adding them
+```powershell
+# 1. Check which devices exist
 .\AADChecker.ps1
 
-# 2. Nur existierende Geräte hinzufügen
-.\AddAADDeviceToAADGroup.ps1  # Option "2" wählen für Devices_In_AAD.csv
+# 2. Add only the found devices
+.\AddAADDeviceToAADGroup.ps1  # choose option "1" for Devices_In_AAD.csv
 ```
 
-### Automatisierung mit Funktion
+### Automation with function
 ```powershell
 . .\Add-DevicesToAADGroupFunction.ps1
 
 $result = Add-DevicesToAADGroup -GroupName "Intune-Devices" -CsvPath ".\Devices.csv"
-Write-Host "Erfolgreich: $($result.Success) | Fehler: $($result.Failed)"
+Write-Host "Successful: $($result.Success) | Failed: $($result.Failed)"
 ```
 
-### Mehrere Gruppen befüllen
-```powershell
-. .\Add-DevicesToAADGroupFunction.ps1
-
-$groups = @("Gruppe1", "Gruppe2", "Gruppe3")
-foreach ($group in $groups) {
-    Add-DevicesToAADGroup -GroupName $group -CsvPath ".\Devices_$group.csv"
-}
-```
-
-## 🐛 Häufige Probleme
+## 🐛 Common issues
 
 ### "Access blocked to AAD Graph API"
-**Problem**: Fehlermeldung "Access blocked to AAD Graph API for this application"
+**Problem**: Error message: "Access blocked to AAD Graph API for this application"
 
-**Ursache**: Microsoft hat die Azure AD Graph API deaktiviert. Das alte AzureAD-Modul funktioniert nicht mehr.
+**Cause**: Microsoft retired the Azure AD Graph API. The legacy AzureAD module no longer works.
 
-**Lösung**: Verwenden Sie Version 1.6+ der Scripts, die Microsoft.Graph nutzen:
+**Solution**: Use version 1.6+ of the scripts, which use Microsoft.Graph:
 ```powershell
-# Alte AzureAD-Module entfernen (optional)
+# Optional: remove the old AzureAD module
 Uninstall-Module AzureAD -Force
 
-# Microsoft.Graph installieren
+# Install Microsoft.Graph
 Install-Module Microsoft.Graph -Scope CurrentUser -Force
 
-# Scripts aktualisieren und erneut ausführen
+# Run the script again
 ./AddAADDeviceToAADGroup.ps1
 ```
 
-### CSV-Format-Fehler
-**Problem**: `Error: The CSV file must have one of the following headers: DeviceName, AzureADDeviceId, DeviceId`
+### CSV format error
+**Problem**: `Error: The CSV file must have one of the following headers: DeviceName, AzureADDeviceId, UserPrincipalName, Mail, Email`
 
-**Lösung**: Erste Zeile muss exakt `DeviceName`, `AzureADDeviceId` oder `DeviceId` sein
+**Solution**: Make sure the first line matches a valid header exactly.
 ```powershell
-Get-Content Devices.csv -TotalCount 1  # Prüfen
+Get-Content Devices.csv -TotalCount 1  # check
+Get-Content Users.csv -TotalCount 1    # check
 ```
 
-### Gruppe nicht gefunden
+### Group not found
 **Problem**: `Error: The specified Azure AD group 'MyGroup' does not exist`
 
-**Lösung**: Exakten Gruppennamen verwenden
+**Solution**: Use the exact group name.
 ```powershell
 Connect-MgGraph -Scopes "Group.Read.All"
 Get-MgGroup -Filter "startswith(displayName,'Intune')" | Select DisplayName
 ```
 
-### Berechtigungsfehler
+### Permission errors
 **Problem**: `Insufficient privileges to complete the operation`
 
-**Lösung**: Mit korrekten Berechtigungen verbinden
+**Solution**: Connect with the correct permissions.
 ```powershell
 Disconnect-MgGraph
-Connect-MgGraph -Scopes "Group.ReadWrite.All","Device.Read.All","Directory.Read.All"
+Connect-MgGraph -Scopes "Group.ReadWrite.All","Device.Read.All","User.Read.All","Directory.Read.All"
 ```
 
 ## ❓ FAQ
 
-**F: Warum funktioniert das AzureAD-Modul nicht mehr?**  
-A: Microsoft hat die Azure AD Graph API am 30. Juni 2023 deaktiviert. Alle Scripts wurden auf Microsoft.Graph migriert.
+**Q: Can I also add users to an Entra ID group?**  
+A: Yes. The main script asks at startup whether to process devices or users. For users, a CSV with `UserPrincipalName`, `Mail`, or `Email` is expected.
 
-**F: Funktioniert das ohne Admin-Rechte?**  
-A: Ja, lokale Admin-Rechte sind nicht nötig. Nur Azure AD-Berechtigungen werden benötigt.
+**Q: Why does the AzureAD module no longer work?**  
+A: Microsoft retired the Azure AD Graph API on June 30, 2023. All scripts were migrated to Microsoft.Graph.
 
-**F: Welche PowerShell-Version brauche ich?**  
-A: PowerShell 5.1 oder höher (Windows) bzw. PowerShell Core 7+ (macOS/Linux).
+**Q: Does this work without admin rights?**  
+A: Yes, local admin rights are not required. Only the required Azure AD / Entra permissions are needed.
 
-**F: Wie viele Geräte kann ich verarbeiten?**  
-A: Getestet mit bis zu 500 Geräten. Bei >1000 Geräten in mehrere CSV-Dateien aufteilen.
+**Q: Which PowerShell version do I need?**  
+A: PowerShell 5.1 or later on Windows, or PowerShell Core 7+ on macOS/Linux.
 
-**F: Was passiert bei bereits vorhandenen Geräten?**  
-A: Diese werden übersprungen mit der Meldung "already a member" - kein Fehler.
+**Q: How many devices can I process?**  
+A: It has been tested with up to 500 devices. For more than 1000 entries, split them into multiple CSV files.
 
-**F: Kann ich Security Groups verwenden?**  
-A: Ja, funktioniert mit Security Groups und Microsoft 365 Groups.
+**Q: What happens with devices that are already in the group?**  
+A: They are skipped with the message "already a member" and do not cause an error.
 
-**F: Unterstützt das Skript MFA?**  
-A: Ja, die interaktive Anmeldung unterstützt MFA, Conditional Access, etc.
+**Q: Can I use security groups?**  
+A: Yes. This works with both Security Groups and Microsoft 365 Groups.
+
+**Q: Does the script support MFA?**  
+A: Yes. Interactive sign-in supports MFA, Conditional Access, and similar policies.
 
 ---
 
-## 📄 License & Autor
+## 📄 License & Author
 
 **License**: GNU General Public License v3.0
 
-**Autor**: Ronny Alhelm  
+**Author**: Ronny Alhelm  
 **GitHub**: [@roalhelm](https://github.com/roalhelm)  
-**Version**: 1.6 (2025-12-11)  
+**Version**: 1.7  
 **Module**: Microsoft.Graph (AzureAD deprecated)
 
 ---
 
 <div align="center">
 
-**Viel Erfolg bei der Verwaltung Ihrer Azure AD-Geräte! 🚀**
+**Good luck managing your Azure AD / Entra ID devices and users! 🚀**
 
 [![GitHub](https://img.shields.io/badge/GitHub-roalhelm-blue?logo=github)](https://github.com/roalhelm/PowershellScripts)
 
