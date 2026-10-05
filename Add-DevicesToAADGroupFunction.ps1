@@ -59,6 +59,27 @@ function Add-DevicesToAADGroup {
         }
     }
 
+    function Connect-MgGraphWithFallback {
+        param(
+            [string[]]$Scopes
+        )
+
+        try {
+            Connect-MgGraph -Scopes $Scopes -NoWelcome -ErrorAction Stop
+        }
+        catch {
+            Write-Host "Interactive browser sign-in could not be completed or was hidden behind another window. Trying device-code sign-in instead..." -ForegroundColor Yellow
+            try {
+                Connect-MgGraph -Scopes $Scopes -UseDeviceAuthentication -NoWelcome -ErrorAction Stop
+                Write-Host "Device-code authentication started in the console. Open the URL shown and enter the code." -ForegroundColor Green
+            }
+            catch {
+                Write-Host "Authentication failed with both interactive and device-code sign-in. Please run the script in a normal PowerShell window and sign in again." -ForegroundColor Red
+                throw
+            }
+        }
+    }
+
     try {
         $logFile = $null
         $errorLogFile = $null
@@ -69,7 +90,7 @@ function Add-DevicesToAADGroup {
         }
 
         $deviceList = Import-Csv -Path $CsvPath
-        Connect-MgGraph -Scopes @("Group.ReadWrite.All", "Directory.Read.All", "Device.Read.All")
+        Connect-MgGraphWithFallback -Scopes @("Group.ReadWrite.All", "Directory.Read.All", "Device.Read.All")
         $escapedGroupName = Escape-ODataStringLiteral -Value $GroupName
         $groupObj = Get-MgGroup -Filter "displayName eq '$escapedGroupName'"
         if ($null -eq $groupObj) {

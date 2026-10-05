@@ -123,6 +123,27 @@ try {
     exit 1
 }
 
+function Connect-MgGraphWithFallback {
+    param(
+        [string[]]$Scopes
+    )
+
+    try {
+        Connect-MgGraph -Scopes $Scopes -NoWelcome -ErrorAction Stop
+    }
+    catch {
+        Write-Host "Interactive browser sign-in could not be completed or was hidden behind another window. Trying device-code sign-in instead..." -ForegroundColor Yellow
+        try {
+            Connect-MgGraph -Scopes $Scopes -UseDeviceAuthentication -NoWelcome -ErrorAction Stop
+            Write-Host "Device-code authentication started in the console. Open the URL shown and enter the code." -ForegroundColor Green
+        }
+        catch {
+            Write-Host "Authentication failed with both interactive and device-code sign-in. Please run the script in a normal PowerShell window and sign in again." -ForegroundColor Red
+            throw
+        }
+    }
+}
+
 # Prompt the user for target type
 $targetTypeChoice = Read-Host "Welche Objekte möchten Sie einer AAD-Gruppe hinzufügen? Enter 1 for Clients/Devices or 2 for Users"
 
@@ -228,7 +249,7 @@ try {
     
     # Microsoft Graph logic
     Write-Host "`nConnecting to Microsoft Graph..." -ForegroundColor Cyan
-    Connect-MgGraph -Scopes "Group.ReadWrite.All", "Directory.Read.All", "Device.Read.All", "User.Read.All"
+    Connect-MgGraphWithFallback -Scopes @("Group.ReadWrite.All", "Directory.Read.All", "Device.Read.All", "User.Read.All")
         
         # Get the Azure AD group object and test if it exists
         $escapedGroupName = Escape-ODataStringLiteral -Value $groupName

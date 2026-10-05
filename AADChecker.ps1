@@ -94,10 +94,31 @@ try {
     exit 1
 }
 
+function Connect-MgGraphWithFallback {
+    param(
+        [string[]]$Scopes
+    )
+
+    try {
+        Connect-MgGraph -Scopes $Scopes -NoWelcome -ErrorAction Stop
+    }
+    catch {
+        Write-Host "Interactive browser sign-in could not be completed or was hidden behind another window. Trying device-code sign-in instead..." -ForegroundColor Yellow
+        try {
+            Connect-MgGraph -Scopes $Scopes -UseDeviceAuthentication -NoWelcome -ErrorAction Stop
+            Write-Host "Device-code authentication started in the console. Open the URL shown and enter the code." -ForegroundColor Green
+        }
+        catch {
+            Write-Host "Authentication failed with both interactive and device-code sign-in. Please run the script in a normal PowerShell window and sign in again." -ForegroundColor Red
+            throw
+        }
+    }
+}
+
 # Connect to Microsoft Graph
 Write-Host "Connecting to Microsoft Graph..." -ForegroundColor Cyan
 try {
-    Connect-MgGraph -Scopes "Device.Read.All" -ErrorAction Stop
+    Connect-MgGraphWithFallback -Scopes @("Device.Read.All")
     Write-Host "Successfully connected to Microsoft Graph." -ForegroundColor Green
 } catch {
     Write-Host "FATAL ERROR: Could not connect to Microsoft Graph." -ForegroundColor Red
