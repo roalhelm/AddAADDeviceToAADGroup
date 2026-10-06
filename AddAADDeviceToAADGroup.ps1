@@ -129,12 +129,15 @@ function Connect-MgGraphWithFallback {
     )
 
     try {
-        Connect-MgGraph -Scopes $Scopes -NoWelcome -ErrorAction Stop
+
+        Connect-MgGraph -Scopes "User.Read" -NoWelcome -ErrorAction Stop
+        # Connect-MgGraph -Scopes $Scopes -NoWelcome -ErrorAction Stop
     }
     catch {
         Write-Host "Interactive browser sign-in could not be completed or was hidden behind another window. Trying device-code sign-in instead..." -ForegroundColor Yellow
         try {
-            Connect-MgGraph -Scopes $Scopes -UseDeviceAuthentication -NoWelcome -ErrorAction Stop
+            Connect-MgGraph -Scopes "User.Read" -UseDeviceAuthentication -NoWelcome -ErrorAction Stop
+            # Connect-MgGraph -Scopes $Scopes -UseDeviceAuthentication -NoWelcome -ErrorAction Stop
             Write-Host "Device-code authentication started in the console. Open the URL shown and enter the code." -ForegroundColor Green
         }
         catch {
